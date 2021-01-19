@@ -28,26 +28,51 @@ def clean_data(text):
     text = text.lower()
     return text
 
-clean_text = clean_data(data.tweet)
 
-def word_freq(text):
+def word_freq(text, STOP_WORDS):
     words = list(map(str, text.split(" ")))
-    d = {}
-    for i in words:
-        if i is not in STOP_WORDS:
-            if i in d.keys:
-                d[i]+=1
-            else:
-                d[i]=1
-    return d 
+     word_list = []
+
+    #Loop over all the tweets and extract words into word_list
+    for tw_words in text.split():
+        word_list.extend(tw_words)
+    word_freq = pd.Series(word_list).value_counts()
+    word_freq = word_freq.drop(STOP_WORDS, errors='ignore')
+    return word_freq
 
 def negative_tone(words):
     for word in words:
         if word in ['no', 'non', 'not'] or re.search(r"\wn't", word):
             return 1
-        else:
-            return 0
-            
+    return 0
+    
+def rare(words, rare_words):
+    for word in words:
+        if word in rare_words:
+            return 1
+    return 0 
+    
+def is_question(words):
+    for word in words:
+        if word in ['when', 'what', 'how', 'why', 'who']:
+            return 1
+    return 0    
+
+
+data['clean_text'] = data.tweet.apply(lambda x: clean_text(x))
+x = word_freq(data.clean_text.str)
+word_frequency = {k: v for k, v in sorted(x.items(), key=lambda item: item[1])}
+rare_words = word_frequency[-100:]
+data['word_count'] = data.clean_text.str.split().apply(lambda x: len(x))
+data['char_count'] = data.clean_text.apply(lambda x: len(x))
+data['is_neg'] = data.clean_text.str.split().apply(lambda x: negative_tone(x))
+data['is_rare'] = data.clean_text.str.split().apply(lambda x: is_rare(x))
+data['is_question'] = data.clean_text.str.split().apply(lambda x: is_question(x))
+
+X = data[['word_count', 'is_neg', 'is_rare', 'char_count', 'is_question']]
+y = data.label
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.1, random_state=27)
+
 model = GaussianNB()
 model = model.fit(X_train, y_train)
 pred = model.predict(X_test)
